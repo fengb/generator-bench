@@ -229,3 +229,65 @@ pub fn StructOptional(comptime Out: type) type {
         }
     };
 }
+
+const bench = @import("bench.zig");
+test "Generator benchmark" {
+    try bench.benchmark(struct {
+        const Arg = struct {
+            letters: []const u8,
+
+            fn bench(a: Arg, Generator: var) void {
+                const GenType = Generator([]const u8);
+                const Wrapper = struct {
+                    fn doit(gen: *GenType, inner_arg: Arg) void {
+                        for (inner_arg.letters) |l| {
+                            const foo = [_]u8{l};
+                            gen.yield(&foo);
+                        }
+                    }
+                };
+                var gen = GenType.init();
+                _ = async Wrapper.doit(&gen, a);
+                while (gen.next()) |bytes| {
+                    bench.doNotOptimize(bytes);
+                }
+            }
+        };
+
+        pub const args = [_]Arg{
+            .{ .letters = "h" ** 100 },
+            .{ .letters = "h" ** 1000 },
+            .{ .letters = "h" ** 10000 },
+            .{ .letters = "h" ** 100000 },
+        };
+
+        pub const iterations = 10000;
+
+        pub fn @"-----"(a: Arg) void {
+            a.bench(Union4State);
+        }
+
+        pub fn noGenerator(a: Arg) void {
+            for (a.letters) |l| {
+                const bytes = [_]u8{l};
+                bench.doNotOptimize(bytes);
+            }
+        }
+
+        pub fn union4State(a: Arg) void {
+            a.bench(Union4State);
+        }
+
+        pub fn union3State(a: Arg) void {
+            a.bench(Union4State);
+        }
+
+        pub fn union2State(a: Arg) void {
+            a.bench(Union2State);
+        }
+
+        pub fn structOptional(a: Arg) void {
+            a.bench(StructOptional);
+        }
+    });
+}
